@@ -8,7 +8,7 @@ from telegram.ext import Application, MessageHandler, ContextTypes, filters
 
 TOKEN = os.environ["BOT_TOKEN"]
 GROUP_ID = -1003589637169
-MAX_BYTES = 49 * 1024 * 1024
+MAX_BYTES = 512 * 1024 * 1024
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
