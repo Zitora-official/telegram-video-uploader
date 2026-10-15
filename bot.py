@@ -7,6 +7,7 @@ from telegram import Update
 from telegram.ext import Application, MessageHandler, ContextTypes, filters
 
 TOKEN = os.environ["BOT_TOKEN"]
+GROUP_ID = -1003589637169
 MAX_BYTES = 49 * 1024 * 1024
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -14,7 +15,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not message or not message.text:
         return
 
-    url = message.text.strip()
+    url = message.text.strip().split()[0].rstrip(".,)>]")
     parsed = urlparse(url)
 
     if parsed.scheme != "https" or not parsed.path.lower().endswith(".mp4"):
@@ -22,49 +23,46 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        await message.reply_text("Downloading on the server and uploading to Telegram…")
+        await message.reply_text("Downloading on the server…")
 
         with requests.get(
             url, stream=True, timeout=(20, 90),
             headers={"User-Agent": "Mozilla/5.0"}
-        ) as response:
-            response.raise_for_status()
-            length = int(response.headers.get("Content-Length", "0"))
+        ) as r:
+            r.raise_for_status()
 
-            if length > MAX_BYTES:
-                await message.reply_text("This bot supports videos up to 49 MB.")
+            if int(r.headers.get("Content-Length", "0")) > MAX_BYTES:
+                await message.reply_text("Video exceeds the 49 MB limit.")
                 return
 
-            with tempfile.NamedTemporaryFile(suffix=".mp4") as video:
+            with tempfile.NamedTemporaryFile(suffix=".mp4") as f:
                 total = 0
-
-                for chunk in response.iter_content(256 * 1024):
+                for chunk in r.iter_content(256 * 1024):
                     if not chunk:
                         continue
                     total += len(chunk)
-
                     if total > MAX_BYTES:
                         await message.reply_text("Video exceeds the 49 MB limit.")
                         return
+                    f.write(chunk)
 
-                    video.write(chunk)
-
-                video.flush()
-                video.seek(0)
-
+                f.flush()
+                f.seek(0)
                 await context.bot.send_video(
-                    chat_id=message.chat_id,
-                    video=video,
+                    chat_id=GROUP_ID,
+                    video=f,
                     caption="Uploaded from download link",
                     supports_streaming=True,
                     read_timeout=180,
                     write_timeout=180,
                 )
 
-    except Exception as error:
-        print(type(error).__name__, str(error))
+        await message.reply_text("Video uploaded to your group.")
+
+    except Exception as e:
+        print(type(e).__name__, str(e))
         await message.reply_text(
-            "Upload failed. The link may be expired, restricted, or too large."
+            "Upload failed. Check the link, file size, and bot permissions."
         )
 
 app = Application.builder().token(TOKEN).build()
